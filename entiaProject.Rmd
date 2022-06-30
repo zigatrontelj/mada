@@ -1,0 +1,265 @@
+---
+title: "entiaProjectKrk"
+output:
+  word_document: default
+  html_document: default
+date: '2022-06-24'
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(tidyverse)
+library(lubridate)
+library(factoextra)
+library(dbscan)
+```
+
+```{r}
+server1 <- read_delim("~/Desktop/entia/data/server1.csv", 
+    delim = "\t", escape_double = FALSE, 
+    col_types = cols(timestamp = col_datetime(format = "%Y-%m-%d %H:%M:%S")),
+    trim_ws = TRUE)
+
+server2 <- read_delim("~/Desktop/entia/data/server2.csv", 
+    delim = "\t", escape_double = FALSE, 
+    col_types = cols(timestamp = col_datetime(format = "%Y-%m-%d %H:%M:%S")),
+    trim_ws = TRUE)
+
+weatherData <- read_delim("~/Desktop/entia/data/ljubljanaHourly2022.csv", 
+    delim = ",", escape_double = FALSE,
+    col_types = cols(hour = col_integer()),
+    trim_ws = TRUE)
+
+weatherData <- weatherData %>% 
+  mutate(tempRounded = as.integer(temp), dwptRounded = as.integer(dwpt), rhumRounded = as.integer(rhum), wdirRounded = as.integer(wdir), wspdRounded = as.integer(wspd), wpgtRounded = as.integer(wpgt), presRounded = as.integer(pres))
+ 
+mergedData <- server1 %>% 
+  bind_rows(server2) 
+
+mergedData <- mergedData %>% 
+  mutate(date = date(timestamp), hour = hour(timestamp), wkday = wday(timestamp, label = T)) %>% 
+  left_join(weatherData, by = c("date", "hour"))
+```
+
+```{r}
+mergedData %>% 
+  ggplot() +
+  aes(device_type_name, fill = subtype_name) +
+  geom_bar() +
+  coord_flip()
+```
+
+```{r}
+mergedData %>% 
+  ggplot() +
+  aes(device_type_name, fill = device_attribute) +
+  geom_bar() +
+  coord_flip()
+```
+
+```{r}
+mergedData %>% 
+  ggplot() +
+  aes(subtype_name, fill = device_attribute) +
+  geom_bar() +
+  coord_flip()
+```
+
+```{r}
+mergedData %>% 
+  ggplot() +
+  aes(device_type_name, fill = device_attribute) +
+  geom_bar()
+```
+```{r}
+mergedData %>% 
+  ggplot() +
+  aes(room_type, fill = device_type_name) +
+  geom_bar() +
+  coord_flip()
+```
+
+
+```{r}
+device_use <- mergedData %>% 
+  filter(flat_id == 38 | flat_id == 34) %>% 
+  group_by(flat_name, device_name) %>% 
+  summarise(n = n())
+  
+device_use
+
+device_use %>% 
+  ggplot() +
+  aes(flat_name, n) + 
+  geom_boxplot()
+```
+
+```{r}
+mergedData %>% ggplot() +
+  aes(device_type_name) + 
+  geom_bar()
+```
+
+```{r}
+(mergedData <- mergedData %>% 
+  mutate(hour = hour(timestamp), wkday = wday(timestamp, label = T))
+)
+
+mergedData %>% ggplot() +
+  aes(hour, fill = device_type_name) +
+  geom_histogram(bins = 24)
+```
+
+```{r}
+mergedData %>% ggplot() +
+  aes(wkday, fill = device_type_name) +
+  geom_bar()
+```
+
+
+```{r}
+mergedData %>% ggplot() +
+  aes(tempRounded, fill = device_type_name) +
+  geom_bar()
+```
+```{r}
+mergedData %>% ggplot() +
+  aes(tempRounded, fill = device_type_name) +
+  geom_bar()
+```
+```{r}
+mergedData %>% ggplot() +
+  aes(dwptRounded, fill = device_type_name) +
+  geom_bar()
+```
+```{r}
+mergedData %>% ggplot() +
+  aes(rhumRounded, fill = device_type_name) +
+  geom_bar()
+```
+```{r}
+mergedData %>% ggplot() +
+  aes(wspdRounded, fill = device_type_name) +
+  geom_bar()
+```
+```{r}
+mergedData %>% ggplot() +
+  aes(presRounded, fill = device_type_name) +
+  geom_bar()
+```
+```{r}
+mergedData %>% 
+  filter(device_type_name == "Temperature sensor") %>% 
+  group_by(hour) %>% 
+  summarise(avgTempData = mean(temp), avgTempAscii = mean(ascii_value)) %>% 
+  mutate(avgTempAscii = avgTempAscii - 27) %>% 
+  ggplot(aes(x=hour)) + 
+  geom_line(aes(y = avgTempData), color = "darkred") + 
+  geom_line(aes(y = avgTempAscii), color="steelblue", linetype="twodash") 
+```
+```{r}
+mergedData %>% 
+  filter(device_type_name == "Temperature sensor") %>% 
+  group_by(hour) %>% 
+  summarise(avgTempData = mean(temp), avgTempAscii = mean(ascii_value)) %>% 
+  mutate(avgTempAscii = avgTempAscii - 27) %>% 
+  ggplot(aes(x=hour)) + 
+  geom_line(aes(y = avgTempData), color = "darkred") + 
+  geom_line(aes(y = avgTempAscii), color="steelblue", linetype="twodash") 
+```
+```{r}
+mergedData %>% 
+  filter(subtype_name == "Fan") %>% 
+  group_by(tempRounded, ascii_value) %>% 
+  summarise(n = n()) %>% 
+  pivot_wider(names_from = ascii_value, 
+              names_prefix = "state_",
+              values_from = n, 
+              values_fn = sum) %>% 
+  ggplot(aes(x=tempRounded)) + 
+  geom_line(aes(y = state_0), color = "darkred") + 
+  geom_line(aes(y = state_1), color="steelblue", linetype="twodash") 
+```
+```{r}
+mergedData %>% 
+  filter(subtype_name == "Fan") %>% 
+  group_by(hour, ascii_value) %>% 
+  summarise(n = n()) %>% 
+  pivot_wider(names_from = ascii_value, 
+              names_prefix = "state_",
+              values_from = n, 
+              values_fn = sum) %>% 
+  ggplot(aes(x=hour)) + 
+  geom_line(aes(y = state_0), color = "darkred") + 
+  geom_line(aes(y = state_1), color="steelblue", linetype="twodash") 
+```
+```{r}
+mergedData %>% 
+  filter(subtype_name == "Fan", ascii_value == 1) %>% 
+  group_by(flat_id, ascii_value) %>% 
+  summarise(n = n())
+
+mergedData %>% 
+  filter(subtype_name == "Fan", flat_id == 303) %>% 
+  group_by(tempRounded, ascii_value) %>% 
+  summarise(n = n()) %>% 
+  pivot_wider(names_from = ascii_value, 
+              names_prefix = "state_",
+              values_from = n, 
+              values_fn = sum) %>% 
+  ggplot(aes(x=tempRounded)) + 
+  geom_line(aes(y = state_0), color = "darkred") + 
+  geom_line(aes(y = state_1), color="steelblue", linetype="twodash") 
+```
+
+```{r}
+mergedData %>% 
+  filter(device_type_name == "Shade") %>% 
+  group_by(tempRounded, device_attribute) %>% 
+  summarise(n = n()) %>% 
+  pivot_wider(names_from = device_attribute, 
+              names_prefix = "state_",
+              values_from = n, 
+              values_fn = sum) %>% 
+  ggplot(aes(x=tempRounded)) + 
+  geom_line(aes(y = `state_Current level`), color = "red") + 
+  geom_line(aes(y = `state_Shade disabled`), color="green") +
+  geom_line(aes(y = `state_Start time`), color="blue") +
+  geom_line(aes(y = `state_Status`), color="pink") +
+  geom_line(aes(y = `state_Target level`), color="brown")
+```
+
+```{r}
+mergedData %>% 
+  filter(device_type_name == "Shade") %>% 
+  group_by(hour, device_attribute) %>% 
+  summarise(n = n()) %>% 
+  pivot_wider(names_from = device_attribute, 
+              names_prefix = "state_",
+              values_from = n, 
+              values_fn = sum) %>% 
+  ggplot(aes(x=hour)) + 
+  geom_line(aes(y = `state_Current level`), color = "red") + 
+  geom_line(aes(y = `state_Shade disabled`), color="green") +
+  geom_line(aes(y = `state_Start time`), color="blue") +
+  geom_line(aes(y = `state_Status`), color="pink") +
+  geom_line(aes(y = `state_Target level`), color="brown")
+```
+```{r}
+mergedData %>% 
+  filter(device_type_name == "Shade" & flat_id == 38) %>% 
+  group_by(hour, device_attribute) %>% 
+  summarise(n = n()) %>% 
+  pivot_wider(names_from = device_attribute, 
+              names_prefix = "state_",
+              values_from = n, 
+              values_fn = sum) %>% 
+  ggplot(aes(x=hour)) + 
+  geom_line(aes(y = `state_Current level`), color = "red") + 
+  geom_line(aes(y = `state_Shade disabled`), color="green") +
+  geom_line(aes(y = `state_Start time`), color="blue") +
+  geom_line(aes(y = `state_Status`), color="pink") +
+  geom_line(aes(y = `state_Target level`), color="brown")
+```
+
